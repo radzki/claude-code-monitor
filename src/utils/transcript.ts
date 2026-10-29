@@ -17,38 +17,79 @@ interface ContentBlock {
   text?: string;
 }
 
+export interface TranscriptInfo {
+  lastMessage?: string;
+  title?: string;
+}
+
+// Title entries, most authoritative first: a /rename, Claude Code's generated
+// title (v2.1.30+, which stopped updating sessions-index.json), and the older
+// summary entries. Within a kind, the latest entry wins.
+const TITLE_KINDS = [
+  { type: 'custom-title', field: 'customTitle' },
+  { type: 'ai-title', field: 'aiTitle' },
+  { type: 'summary', field: 'summary' },
+] as const;
+
 /**
- * Get the last assistant text message from a transcript file.
+ * Read the last assistant text message and the session title from a transcript
+ * file in one pass (from the end, so the latest entries win).
  */
-export function getLastAssistantMessage(transcriptPath: string): string | undefined {
+export function readTranscriptInfo(transcriptPath: string): TranscriptInfo {
   if (!transcriptPath || !existsSync(transcriptPath)) {
-    return undefined;
+    return {};
   }
+
+  let lastMessage: string | undefined;
+  const titles: (string | undefined)[] = TITLE_KINDS.map(() => undefined);
 
   try {
     const content = readFileSync(transcriptPath, 'utf-8');
     const lines = content.trim().split('\n').filter(Boolean);
 
-    // Read from end to find last text message
     for (let i = lines.length - 1; i >= 0; i--) {
+      const line = lines[i];
+      const kind = TITLE_KINDS.findIndex(
+        (k, idx) => titles[idx] === undefined && line.includes(`"type":"${k.type}"`)
+      );
+      const wantsMessage = lastMessage === undefined && line.includes('"type":"assistant"');
+      if (kind === -1 && !wantsMessage) continue;
+
       try {
-        const entry = JSON.parse(lines[i]);
-        if (entry.type === 'assistant' && entry.message?.content) {
+        const entry = JSON.parse(line);
+        if (kind !== -1 && entry.type === TITLE_KINDS[kind].type) {
+          const value = entry[TITLE_KINDS[kind].field];
+          if (typeof value === 'string' && value.trim()) {
+            titles[kind] = value.trim();
+          }
+        }
+        if (wantsMessage && entry.type === 'assistant' && entry.message?.content) {
           const contentBlocks = entry.message.content as ContentBlock[];
 
           for (const block of contentBlocks) {
             if (block.type === 'text' && block.text) {
-              return block.text;
+              lastMessage = block.text;
+              break;
             }
           }
         }
       } catch {
         // Skip invalid JSON lines
       }
+
+      // The top title kind and a message: nothing later in the scan can beat them.
+      if (lastMessage !== undefined && titles[0] !== undefined) break;
     }
   } catch {
     // Ignore file read errors
   }
 
-  return undefined;
+  return { lastMessage, title: titles.find((t) => t !== undefined) };
+}
+
+/**
+ * Get the last assistant text message from a transcript file.
+ */
+export function getLastAssistantMessage(transcriptPath: string): string | undefined {
+  return readTranscriptInfo(transcriptPath).lastMessage;
 }

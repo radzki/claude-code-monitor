@@ -129,7 +129,7 @@ program
     for (const session of sessions) {
       const cwd = session.cwd.replace(/^\/Users\/[^/]+/, '~');
       const { symbol } = getStatusDisplay(session.status);
-      console.log(`${symbol} ${cwd}`);
+      console.log(session.title ? `${symbol} ${session.title}  ${cwd}` : `${symbol} ${cwd}`);
     }
   });
 

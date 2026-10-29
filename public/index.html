@@ -1389,7 +1389,7 @@
       const isWaiting = session.status === 'waiting_input';
 
       targetSession = id;
-      $modalTitle.textContent = getDirName(session.cwd);
+      $modalTitle.textContent = session.title || getDirName(session.cwd);
       $modalPath.textContent = formatPath(session.cwd);
       $modalMessageLabel.textContent = 'Message';
       $modalMessage.innerHTML = renderMarkdown(session.lastMessage);
@@ -1432,7 +1432,7 @@
 
       const isWaiting = session.status === 'waiting_input';
 
-      $modalTitle.textContent = getDirName(session.cwd);
+      $modalTitle.textContent = session.title || getDirName(session.cwd);
       $modalPath.textContent = formatPath(session.cwd);
       $modalMessage.innerHTML = renderMarkdown(session.lastMessage);
 
@@ -1797,7 +1797,7 @@
         if (!isValidSessionId(session.session_id)) return '';
 
         // Escape all user-provided content to prevent XSS
-        const dirName = escapeHtml(getDirName(session.cwd));
+        const dirName = escapeHtml(session.title || getDirName(session.cwd));
         const shortPath = escapeHtml(formatPath(session.cwd));
         const statusLabel = escapeHtml(STATUS[session.status]);
         const msgPreview = escapeHtml(truncateMessage(session.lastMessage));
